@@ -56,7 +56,7 @@ async fn get_exchange(
     // let resp = reqwest::get(url).await?.text().await?;
     let resp = reqwest::get(url).await?.text().await?;
 
-    let res: RespResult = serde_json::from_str(&resp);
+    let res: RespResult = serde_json::from_str(&resp)?;
     return res;
 }
 
