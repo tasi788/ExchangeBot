@@ -1,9 +1,9 @@
 use reqwest;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json;
 use teloxide::{prelude::*, utils::command::BotCommands};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Motd {
     msg: String,
     url: String,
@@ -42,23 +42,19 @@ enum Command {
     Test,
 }
 
-async fn get_exchange(
-    from: &str,
-    target: &str,
-    value: &str,
-) -> Result<RespResult, Box<dyn std::error::Error>> {
+async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResult, reqwest::Error> {
     let url = format!(
         "https://api.exchangerate.host/convert?from={from}&to={target}&amount={amount}",
         from = from,
         target = target,
         amount = value
     );
-    let resp = match reqwest::get(url).await {
-        Ok(r) => r.text().await?,
-        Err(err) => return Err(e),
+    let resp_result = reqwest::get(url).await;
+    let resp = match resp_result {
+        Ok(r) => r.text().await.unwrap(),
+        Err(e) => return Err(e),
     };
-
-    let res: RespResult = serde_json::from_str(&resp)?;
+    let res: RespResult = serde_json::from_str(&resp.as_str()).unwrap();
     return Ok(res);
 }
 
@@ -80,8 +76,8 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             .await?
         }
         Command::Test => {
-            let r = get_exchange("USD", "EUR", "2").await;
-            log::info!("{}", r);
+            let r = get_exchange("USD", "EUR", "2").await.unwrap();
+            log::info!("{:?}", r);
             let text: &str = "處理的狀況";
             bot.send_message(msg.chat.id, text).await?
         }
