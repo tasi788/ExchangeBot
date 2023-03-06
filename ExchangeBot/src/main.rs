@@ -1,4 +1,4 @@
-use reqwest;
+use reqwest::Error;
 use serde::Deserialize;
 use serde_json;
 use teloxide::{prelude::*, utils::command::BotCommands};
@@ -46,7 +46,7 @@ async fn get_exchange(
     from: &str,
     target: &str,
     value: &str,
-) -> Result<(RespResult), Box<dyn std::error::Error>> {
+) -> Result<RespResult, Box<dyn std::error::Error>> {
     let url = format!(
         "https://api.exchangerate.host/convert?from={from}&to={target}&amount={amount}",
         from = from,
@@ -55,7 +55,7 @@ async fn get_exchange(
     );
     let resp = match reqwest::get(url).await {
         Ok(r) => r.text().await?,
-        Err(e) => log::error!("http request err!"),
+        Err(err) => return Err(e),
     };
 
     let res: RespResult = serde_json::from_str(&resp)?;
