@@ -46,7 +46,7 @@ async fn get_exchange(
     from: &str,
     target: &str,
     value: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(RespResult), Box<dyn std::error::Error>> {
     let url = format!(
         "https://api.exchangerate.host/convert?from={from}&to={target}&amount={amount}",
         from = from,
@@ -57,8 +57,7 @@ async fn get_exchange(
     let resp = reqwest::get(url).await?.text().await?;
 
     let res: RespResult = serde_json::from_str(&resp);
-
-    return res.result;
+    return res;
 }
 
 async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
