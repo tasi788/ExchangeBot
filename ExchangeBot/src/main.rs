@@ -53,11 +53,13 @@ async fn get_exchange(
         target = target,
         amount = value
     );
-    // let resp = reqwest::get(url).await?.text().await?;
-    let resp = reqwest::get(url).await?.text().await?;
+    let resp = match reqwest::get(url).await {
+        Ok(r) => r.text().await?,
+        Err(e) => log::error!("http request err!"),
+    };
 
     let res: RespResult = serde_json::from_str(&resp)?;
-    return res;
+    return Ok(res);
 }
 
 async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
