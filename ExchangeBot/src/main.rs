@@ -1,4 +1,4 @@
-use reqwest::Error;
+use reqwest;
 use serde::Deserialize;
 use serde_json;
 use teloxide::{prelude::*, utils::command::BotCommands};
