@@ -1,3 +1,4 @@
+use regex;
 use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -11,8 +12,6 @@ struct Motd {
 
 #[derive(Debug, Deserialize)]
 struct RespResult {
-    motd: Motd,
-    success: bool,
     result: f64,
 }
 
@@ -38,8 +37,8 @@ enum Command {
     Username(String),
     #[command(description = "handle a username and an age.", parse_with = "split")]
     UsernameAndAge { username: String, age: u8 },
-    #[command(description = "process a http test")]
-    Test,
+    #[command(description = "exchange", parse_with = "split")]
+    Ec { query: String },
 }
 
 async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResult, reqwest::Error> {
@@ -75,11 +74,29 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             )
             .await?
         }
-        Command::Test => {
-            let r = get_exchange("USD", "EUR", "2").await.unwrap();
-            log::info!("{:?}", r);
-            let text: &str = "處理的狀況";
-            bot.send_message(msg.chat.id, text).await?
+        Command::Ec { query } => {
+            let re = regex::Regex::new(r"(\d+|)(\S{1,4})\=(\S{1,4})").unwrap();
+            let caps = re.captures(&query).unwrap();
+            let amount = caps.get(1).unwrap().as_str();
+            let from = caps.get(2).unwrap().as_str();
+            let target = caps.get(3).unwrap().as_str();
+            let r = get_exchange(from, target, amount).await.unwrap();
+            // let text = format!(
+            //     "{from}對 {target}的匯率為 {amount:.2} ",
+            //     from = from,
+            //     target = target,
+            //     amount = r.result
+            // );
+            bot.send_message(
+                msg.chat.id,
+                format!(
+                    "{from}對 {target}的匯率為 {amount:.2} ",
+                    from = from,
+                    target = target,
+                    amount = r.result
+                ),
+            )
+            .await?
         }
     };
 
