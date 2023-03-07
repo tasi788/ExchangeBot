@@ -37,7 +37,7 @@ enum Command {
     Username(String),
     #[command(description = "handle a username and an age.", parse_with = "split")]
     UsernameAndAge { username: String, age: u8 },
-    #[command(description = "exchange", parse_with = "split")]
+    #[command(description = "exchange")]
     Ec { query: String },
 }
 
