@@ -2,7 +2,7 @@ use regex;
 use reqwest;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use teloxide::{prelude::*, utils::command::BotCommands};
+use teloxide::{prelude::*, types::ParseMode, utils::command::BotCommands};
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Motd {
@@ -75,28 +75,23 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             .await?
         }
         Command::Ec { query } => {
-            let re = regex::Regex::new(r"(\d+|)(\S{1,4})\=(\S{1,4})").unwrap();
+            let re = regex::Regex::new(r"(\d+|\d+\.\d+|)(\S{1,4})=(\S{1,4})").unwrap();
             let caps = re.captures(&query).unwrap();
             let amount = caps.get(1).unwrap().as_str();
             let from = caps.get(2).unwrap().as_str();
             let target = caps.get(3).unwrap().as_str();
             let r = get_exchange(from, target, amount).await.unwrap();
-            // let text = format!(
-            //     "{from}對 {target}的匯率為 {amount:.2} ",
-            //     from = from,
-            //     target = target,
-            //     amount = r.result
-            // );
-            bot.send_message(
-                msg.chat.id,
-                format!(
-                    "{from}對 {target}的匯率為 {amount:.2} ",
-                    from = from,
-                    target = target,
-                    amount = r.result
-                ),
-            )
-            .await?
+            let text = format!(
+                "`{source}` `{from}` 對 `{target}` 的匯率為 `{amount:.2}` ",
+                source = amount.to_uppercase(),
+                from = from.to_uppercase(),
+                target = target.to_uppercase(),
+                amount = r.result
+            );
+            bot.send_message(msg.chat.id, &text)
+                .parse_mode(ParseMode::MarkdownV2)
+                .reply_to_message_id(msg.id)
+                .await?
         }
     };
 
