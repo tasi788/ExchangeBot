@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use teloxide::{prelude::*, types::ParseMode, utils::command::BotCommands};
 
-
 #[derive(Debug, Deserialize)]
 struct RespResult {
     result: f64,
@@ -14,10 +13,13 @@ struct RespResult {
 async fn main() {
     pretty_env_logger::init();
     log::info!("Starting command bot...");
-
+    let support: Symbols = get_support().await.unwrap();
     let bot = Bot::from_env();
 
-    Command::repl(bot, answer).await;
+    Command::repl(bot, move |bot, msg, cmd| {
+        answer(bot, msg, cmd, support.clone())
+    })
+    .await;
 }
 
 #[derive(BotCommands, Clone)]
@@ -36,13 +38,13 @@ enum Command {
     Ex { query: String },
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct CurrencyInfo {
     description: String,
     code: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct Symbols {
     symbols: std::collections::HashMap<String, CurrencyInfo>,
 }
@@ -72,9 +74,7 @@ async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResul
     return Ok(res);
 }
 
-async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
-    // let support: Symbols = get_support().await.unwrap();
-
+async fn answer(bot: Bot, msg: Message, cmd: Command, support: Symbols) -> ResponseResult<()> {
     match cmd {
         Command::Help => {
             bot.send_message(msg.chat.id, Command::descriptions().to_string())
