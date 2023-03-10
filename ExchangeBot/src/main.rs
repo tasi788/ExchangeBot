@@ -4,11 +4,6 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use teloxide::{prelude::*, types::ParseMode, utils::command::BotCommands};
 
-#[derive(Debug, Deserialize, Serialize)]
-struct Motd {
-    msg: String,
-    url: String,
-}
 
 #[derive(Debug, Deserialize)]
 struct RespResult {
@@ -38,7 +33,27 @@ enum Command {
     #[command(description = "handle a username and an age.", parse_with = "split")]
     UsernameAndAge { username: String, age: u8 },
     #[command(description = "exchange")]
-    Ec { query: String },
+    Ex { query: String },
+}
+
+#[derive(Debug, Deserialize)]
+struct CurrencyInfo {
+    description: String,
+    code: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Symbols {
+    symbols: std::collections::HashMap<String, CurrencyInfo>,
+}
+
+async fn get_support() -> Result<Symbols, reqwest::Error> {
+    let url = "https://api.exchangerate.host/symbols";
+    // reqwest::blocking::get("https://www.rust-lang.org")?.text()?;
+
+    let resp_result = reqwest::get(url).await?.text().await?;
+    let res: Symbols = serde_json::from_str(&resp_result.as_str()).unwrap();
+    return Ok(res);
 }
 
 async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResult, reqwest::Error> {
@@ -58,6 +73,8 @@ async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResul
 }
 
 async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
+    // let support: Symbols = get_support().await.unwrap();
+
     match cmd {
         Command::Help => {
             bot.send_message(msg.chat.id, Command::descriptions().to_string())
@@ -74,7 +91,11 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
             )
             .await?
         }
-        Command::Ec { query } => {
+        Command::Ex { query } => {
+            
+            // println!("{:?}", ONCE);
+
+        
             let re = regex::Regex::new(r"(\d+|\d+\.\d+|)(\S{1,4})=(\S{1,4})").unwrap();
             let caps = re.captures(&query).unwrap();
             let amount = caps.get(1).unwrap().as_str();
@@ -88,6 +109,7 @@ async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
                 target = target.to_uppercase(),
                 amount = r.result
             );
+
             bot.send_message(msg.chat.id, &text)
                 .parse_mode(ParseMode::MarkdownV2)
                 .reply_to_message_id(msg.id)
