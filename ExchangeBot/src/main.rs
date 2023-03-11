@@ -64,45 +64,46 @@ async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResul
 }
 
 async fn answer(bot: Bot, msg: Message, cmd: Command, support: Symbols) -> ResponseResult<()> {
-    match cmd {
-        Command::Help => {
-            bot.send_message(msg.chat.id, Command::descriptions().to_string())
-                .await?
-        }
-        Command::Username(username) => {
-            bot.send_message(msg.chat.id, format!("Your username is @{username}."))
-                .await?
-        }
+    let text = match cmd {
+        Command::Help => Command::descriptions().to_string(),
+        Command::Username(username) => format!("Your username is @{username}."),
         Command::UsernameAndAge { username, age } => {
-            bot.send_message(
-                msg.chat.id,
-                format!("Your username is @{username} and age is {age}."),
-            )
-            .await?
+            format!("Your username is @{username} and age is {age}.")
         }
         Command::Ex { query } => {
-            // println!("{:?}", ONCE);
+            let re = regex::Regex::new(
+                r"(?x)                       # Free-spacing mode
+                  (?P<amount>\d+|\d+\.\d+|)  # Amount
+                  (?P<from>\S{1,4})          # From
+                  =                          # Sep
+                  (?P<target>\S{1,4})        # Target
+                ",
+            )
+            .unwrap();
 
-            let re = regex::Regex::new(r"(\d+|\d+\.\d+|)(\S{1,4})=(\S{1,4})").unwrap();
             let caps = re.captures(&query).unwrap();
-            let amount = caps.get(1).unwrap().as_str();
-            let from = caps.get(2).unwrap().as_str();
-            let target = caps.get(3).unwrap().as_str();
-            let r = get_exchange(from, target, amount).await.unwrap();
-            let text = format!(
-                "`{source}` `{from}` 對 `{target}` 的匯率為 `{amount:.2}` ",
-                source = amount.to_uppercase(),
-                from = from.to_uppercase(),
-                target = target.to_uppercase(),
-                amount = r.result
-            );
+            let amount = &caps["amount"];
+            let from = &caps["from"];
+            let target = &caps["target"];
+            let text = get_exchange(from, target, amount).await.map(|r| {
+                format!(
+                    "`{source}` `{from}` 對 `{target}` 的匯率為 `{amount:.2}` ",
+                    source = amount.to_uppercase(),
+                    from = from.to_uppercase(),
+                    target = target.to_uppercase(),
+                    amount = r.result
+                )
+            })?;
 
-            bot.send_message(msg.chat.id, &text)
+            bot.send_message(msg.chat.id, text)
                 .parse_mode(ParseMode::MarkdownV2)
                 .reply_to_message_id(msg.id)
-                .await?
+                .await?;
+            return Ok(());
         }
     };
+
+    bot.send_message(msg.chat.id, text).await?;
 
     Ok(())
 }
