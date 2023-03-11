@@ -1,7 +1,4 @@
-use regex;
-use reqwest;
-use serde::{Deserialize, Serialize};
-use serde_json;
+use serde::Deserialize;
 use teloxide::{prelude::*, types::ParseMode, utils::command::BotCommands};
 
 #[derive(Debug, Deserialize)]
@@ -54,8 +51,8 @@ async fn get_support() -> Result<Symbols, reqwest::Error> {
     // reqwest::blocking::get("https://www.rust-lang.org")?.text()?;
 
     let resp_result = reqwest::get(url).await?.text().await?;
-    let res: Symbols = serde_json::from_str(&resp_result.as_str()).unwrap();
-    return Ok(res);
+    let res: Symbols = serde_json::from_str(&resp_result).unwrap();
+    Ok(res)
 }
 
 async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResult, reqwest::Error> {
@@ -70,8 +67,8 @@ async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResul
         Ok(r) => r.text().await.unwrap(),
         Err(e) => return Err(e),
     };
-    let res: RespResult = serde_json::from_str(&resp.as_str()).unwrap();
-    return Ok(res);
+    let res: RespResult = serde_json::from_str(&resp).unwrap();
+    Ok(res)
 }
 
 async fn answer(bot: Bot, msg: Message, cmd: Command, support: Symbols) -> ResponseResult<()> {
@@ -92,10 +89,8 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, support: Symbols) -> Respo
             .await?
         }
         Command::Ex { query } => {
-            
             // println!("{:?}", ONCE);
 
-        
             let re = regex::Regex::new(r"(\d+|\d+\.\d+|)(\S{1,4})=(\S{1,4})").unwrap();
             let caps = re.captures(&query).unwrap();
             let amount = caps.get(1).unwrap().as_str();
