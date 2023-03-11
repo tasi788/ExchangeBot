@@ -29,10 +29,6 @@ async fn main() {
 enum Command {
     #[command(description = "display this text.")]
     Help,
-    #[command(description = "handle a username.")]
-    Username(String),
-    #[command(description = "handle a username and an age.", parse_with = "split")]
-    UsernameAndAge { username: String, age: u8 },
     #[command(description = "exchange")]
     Ex { query: String },
 }
@@ -68,10 +64,6 @@ async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResul
 async fn answer(bot: Bot, msg: Message, cmd: Command, support: Symbols) -> ResponseResult<()> {
     let text = match cmd {
         Command::Help => Command::descriptions().to_string(),
-        Command::Username(username) => format!("Your username is @{username}."),
-        Command::UsernameAndAge { username, age } => {
-            format!("Your username is @{username} and age is {age}.")
-        }
         Command::Ex { query } => {
             // ensure the regex is compiled exactly once
             static RE: Lazy<Regex> = Lazy::new(|| {
