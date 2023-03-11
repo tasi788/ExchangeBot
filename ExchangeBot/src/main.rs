@@ -51,7 +51,6 @@ struct Symbols {
 
 async fn get_support() -> Result<Symbols, reqwest::Error> {
     let url = "https://api.exchangerate.host/symbols";
-    // reqwest::blocking::get("https://www.rust-lang.org")?.text()?;
 
     let resp_result = reqwest::get(url).await?.text().await?;
     let res: Symbols = serde_json::from_str(&resp_result.as_str()).unwrap();
@@ -92,28 +91,33 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, support: Symbols) -> Respo
             .await?
         }
         Command::Ex { query } => {
-            
-            // println!("{:?}", ONCE);
-
-        
+            let symbols = support.symbols.clone();
             let re = regex::Regex::new(r"(\d+|\d+\.\d+|)(\S{1,4})=(\S{1,4})").unwrap();
-            let caps = re.captures(&query).unwrap();
+            let upper_query = query.to_uppercase();
+            let caps = re.captures(&upper_query).unwrap();
             let amount = caps.get(1).unwrap().as_str();
             let from = caps.get(2).unwrap().as_str();
             let target = caps.get(3).unwrap().as_str();
-            let r = get_exchange(from, target, amount).await.unwrap();
-            let text = format!(
-                "`{source}` `{from}` 對 `{target}` 的匯率為 `{amount:.2}` ",
-                source = amount.to_uppercase(),
-                from = from.to_uppercase(),
-                target = target.to_uppercase(),
-                amount = r.result
-            );
 
-            bot.send_message(msg.chat.id, &text)
-                .parse_mode(ParseMode::MarkdownV2)
-                .reply_to_message_id(msg.id)
-                .await?
+            match symbols.get(from) {
+                Some(v) => {
+                    let r = get_exchange(from, target, amount).await.unwrap();
+                    let text = format!(
+                        "`{source}` `{from}` 對 `{target}` 的匯率為 `{amount:.2}` ",
+                        source = amount.to_uppercase(),
+                        from = from.to_uppercase(),
+                        target = target.to_uppercase(),
+                        amount = r.result);
+                    bot.send_message(msg.chat.id, &text)
+                        .parse_mode(ParseMode::MarkdownV2)
+                        .reply_to_message_id(msg.id)
+                        .await?
+                },
+                None => { bot.send_message(msg.chat.id, "不支援的幣別")
+                        .parse_mode(ParseMode::MarkdownV2)
+                        .reply_to_message_id(msg.id)
+                        .await? },
+            }
         }
     };
 
