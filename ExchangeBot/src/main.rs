@@ -1,7 +1,6 @@
-use regex;
-use reqwest;
-use serde::{Deserialize, Serialize};
-use serde_json;
+use once_cell::sync::Lazy;
+use regex::Regex;
+use serde::Deserialize;
 use teloxide::{prelude::*, types::ParseMode, utils::command::BotCommands};
 
 #[derive(Debug, Deserialize)]
@@ -51,10 +50,8 @@ struct Symbols {
 
 async fn get_support() -> Result<Symbols, reqwest::Error> {
     let url = "https://api.exchangerate.host/symbols";
-
-    let resp_result = reqwest::get(url).await?.text().await?;
-    let res: Symbols = serde_json::from_str(&resp_result.as_str()).unwrap();
-    return Ok(res);
+    let res = reqwest::get(url).await?.json::<Symbols>().await?;
+    Ok(res)
 }
 
 async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResult, reqwest::Error> {
@@ -64,62 +61,64 @@ async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResul
         target = target,
         amount = value
     );
-    let resp_result = reqwest::get(url).await;
-    let resp = match resp_result {
-        Ok(r) => r.text().await.unwrap(),
-        Err(e) => return Err(e),
-    };
-    let res: RespResult = serde_json::from_str(&resp.as_str()).unwrap();
-    return Ok(res);
+    let res = reqwest::get(url).await?.json::<RespResult>().await?;
+    Ok(res)
 }
 
 async fn answer(bot: Bot, msg: Message, cmd: Command, support: Symbols) -> ResponseResult<()> {
-    match cmd {
-        Command::Help => {
-            bot.send_message(msg.chat.id, Command::descriptions().to_string())
-                .await?
-        }
-        Command::Username(username) => {
-            bot.send_message(msg.chat.id, format!("Your username is @{username}."))
-                .await?
-        }
+    let text = match cmd {
+        Command::Help => Command::descriptions().to_string(),
+        Command::Username(username) => format!("Your username is @{username}."),
         Command::UsernameAndAge { username, age } => {
-            bot.send_message(
-                msg.chat.id,
-                format!("Your username is @{username} and age is {age}."),
-            )
-            .await?
+            format!("Your username is @{username} and age is {age}.")
         }
         Command::Ex { query } => {
-            let symbols = support.symbols.clone();
-            let re = regex::Regex::new(r"(\d+|\d+\.\d+|)(\S{1,4})=(\S{1,4})").unwrap();
-            let upper_query = query.to_uppercase();
-            let caps = re.captures(&upper_query).unwrap();
-            let amount = caps.get(1).unwrap().as_str();
-            let from = caps.get(2).unwrap().as_str();
-            let target = caps.get(3).unwrap().as_str();
+            // ensure the regex is compiled exactly once
+            static RE: Lazy<Regex> = Lazy::new(|| {
+                Regex::new(
+                    r"(?x)                       # Free-spacing mode
+                      (?P<amount>\d+|\d+\.\d+|)  # Amount
+                      (?P<from>\S{1,4})          # From
+                      =                          # Sep
+                      (?P<target>\S{1,4})        # Target
+                    ",
+                )
+                .unwrap()
+            });
 
-            match symbols.get(from) {
-                Some(v) => {
-                    let r = get_exchange(from, target, amount).await.unwrap();
-                    let text = format!(
-                        "`{source}` `{from}` 對 `{target}` 的匯率為 `{amount:.2}` ",
-                        source = amount.to_uppercase(),
-                        from = from.to_uppercase(),
-                        target = target.to_uppercase(),
-                        amount = r.result);
-                    bot.send_message(msg.chat.id, &text)
-                        .parse_mode(ParseMode::MarkdownV2)
-                        .reply_to_message_id(msg.id)
-                        .await?
-                },
-                None => { bot.send_message(msg.chat.id, "不支援的幣別")
-                        .parse_mode(ParseMode::MarkdownV2)
-                        .reply_to_message_id(msg.id)
-                        .await? },
-            }
+            let text = match RE.captures(&query) {
+                Some(caps) if !support.symbols.contains_key(&caps["from"].to_uppercase()) => {
+                    format!("不支援的幣別 `{from}`", from = &caps["from"])
+                }
+                Some(caps) if !support.symbols.contains_key(&caps["target"].to_uppercase()) => {
+                    format!("不支援的幣別 `{target}`", target = &caps["target"])
+                }
+                Some(caps) => {
+                    let amount = &caps["amount"];
+                    let from = &caps["from"];
+                    let target = &caps["target"];
+                    get_exchange(from, target, amount).await.map(|r| {
+                        format!(
+                            "`{source}` `{from}` 對 `{target}` 的匯率為 `{amount:.2}` ",
+                            source = amount.to_uppercase(),
+                            from = from.to_uppercase(),
+                            target = target.to_uppercase(),
+                            amount = r.result
+                        )
+                    })?
+                }
+                None => "Invalid format, Expected `{Amount?}{From}={Target}`".to_string(),
+            };
+
+            bot.send_message(msg.chat.id, text)
+                .parse_mode(ParseMode::MarkdownV2)
+                .reply_to_message_id(msg.id)
+                .await?;
+            return Ok(());
         }
     };
+
+    bot.send_message(msg.chat.id, text).await?;
 
     Ok(())
 }
