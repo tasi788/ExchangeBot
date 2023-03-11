@@ -88,13 +88,10 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, support: Symbols) -> Respo
 
             let text = match RE.captures(&query) {
                 Some(caps) if !support.symbols.contains_key(&caps["from"].to_uppercase()) => {
-                    format!("Unsupported currency for `{from}`", from = &caps["from"])
+                    format!("不支援的幣別 `{from}`", from = &caps["from"])
                 }
                 Some(caps) if !support.symbols.contains_key(&caps["target"].to_uppercase()) => {
-                    format!(
-                        "Unsupported currency for `{target}`",
-                        target = &caps["target"]
-                    )
+                    format!("不支援的幣別 `{target}`", target = &caps["target"])
                 }
                 Some(caps) => {
                     let amount = &caps["amount"];
