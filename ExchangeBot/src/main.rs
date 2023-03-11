@@ -1,3 +1,5 @@
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::Deserialize;
 use teloxide::{prelude::*, types::ParseMode, utils::command::BotCommands};
 
@@ -71,17 +73,20 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, support: Symbols) -> Respo
             format!("Your username is @{username} and age is {age}.")
         }
         Command::Ex { query } => {
-            let re = regex::Regex::new(
-                r"(?x)                       # Free-spacing mode
-                  (?P<amount>\d+|\d+\.\d+|)  # Amount
-                  (?P<from>\S{1,4})          # From
-                  =                          # Sep
-                  (?P<target>\S{1,4})        # Target
-                ",
-            )
-            .unwrap();
+            // ensure the regex is compiled exactly once
+            static RE: Lazy<Regex> = Lazy::new(|| {
+                Regex::new(
+                    r"(?x)                       # Free-spacing mode
+                      (?P<amount>\d+|\d+\.\d+|)  # Amount
+                      (?P<from>\S{1,4})          # From
+                      =                          # Sep
+                      (?P<target>\S{1,4})        # Target
+                    ",
+                )
+                .unwrap()
+            });
 
-            let text = match re.captures(&query) {
+            let text = match RE.captures(&query) {
                 Some(caps) if !support.symbols.contains_key(&caps["from"].to_uppercase()) => {
                     format!("Unsupported currency for `{from}`", from = &caps["from"])
                 }
