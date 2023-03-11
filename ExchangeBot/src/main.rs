@@ -81,19 +81,32 @@ async fn answer(bot: Bot, msg: Message, cmd: Command, support: Symbols) -> Respo
             )
             .unwrap();
 
-            let caps = re.captures(&query).unwrap();
-            let amount = &caps["amount"];
-            let from = &caps["from"];
-            let target = &caps["target"];
-            let text = get_exchange(from, target, amount).await.map(|r| {
-                format!(
-                    "`{source}` `{from}` 對 `{target}` 的匯率為 `{amount:.2}` ",
-                    source = amount.to_uppercase(),
-                    from = from.to_uppercase(),
-                    target = target.to_uppercase(),
-                    amount = r.result
-                )
-            })?;
+            let text = match re.captures(&query) {
+                Some(caps) if !support.symbols.contains_key(&caps["from"].to_uppercase()) => {
+                    format!("Unsupported currency for `{from}`", from = &caps["from"])
+                }
+                Some(caps) if !support.symbols.contains_key(&caps["target"].to_uppercase()) => {
+                    format!(
+                        "Unsupported currency for `{target}`",
+                        target = &caps["target"]
+                    )
+                }
+                Some(caps) => {
+                    let amount = &caps["amount"];
+                    let from = &caps["from"];
+                    let target = &caps["target"];
+                    get_exchange(from, target, amount).await.map(|r| {
+                        format!(
+                            "`{source}` `{from}` 對 `{target}` 的匯率為 `{amount:.2}` ",
+                            source = amount.to_uppercase(),
+                            from = from.to_uppercase(),
+                            target = target.to_uppercase(),
+                            amount = r.result
+                        )
+                    })?
+                }
+                None => "Invalid format, Expected `{Amount?}{From}={Target}`".to_string(),
+            };
 
             bot.send_message(msg.chat.id, text)
                 .parse_mode(ParseMode::MarkdownV2)
