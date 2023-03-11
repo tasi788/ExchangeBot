@@ -48,10 +48,7 @@ struct Symbols {
 
 async fn get_support() -> Result<Symbols, reqwest::Error> {
     let url = "https://api.exchangerate.host/symbols";
-    // reqwest::blocking::get("https://www.rust-lang.org")?.text()?;
-
-    let resp_result = reqwest::get(url).await?.text().await?;
-    let res: Symbols = serde_json::from_str(&resp_result).unwrap();
+    let res = reqwest::get(url).await?.json::<Symbols>().await?;
     Ok(res)
 }
 
@@ -62,12 +59,7 @@ async fn get_exchange(from: &str, target: &str, value: &str) -> Result<RespResul
         target = target,
         amount = value
     );
-    let resp_result = reqwest::get(url).await;
-    let resp = match resp_result {
-        Ok(r) => r.text().await.unwrap(),
-        Err(e) => return Err(e),
-    };
-    let res: RespResult = serde_json::from_str(&resp).unwrap();
+    let res = reqwest::get(url).await?.json::<RespResult>().await?;
     Ok(res)
 }
 
