@@ -11,3 +11,7 @@ Cargo.lock
 
 
 .idea/
+
+ExchangeBot/config.yml
+
+ExchangeBot/ping.session
