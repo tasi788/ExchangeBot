@@ -15,3 +15,7 @@ Cargo.lock
 ExchangeBot/config.yml
 
 ExchangeBot/ping.session
+
+*.yml
+
+*.session
