@@ -1,16 +1,18 @@
-use grammers_client::{Client, Config, InitParams, Update, InputMessage};
 use grammers_client;
-use grammers_tl_types::enums::MessageEntity;
+use grammers_client::{Client, Config, InitParams, InputMessage, SignInError, Update};
 use grammers_session::Session;
+use grammers_tl_types::enums::MessageEntity;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use std::io::{self, BufRead as _, Write as _};
 use tokio::{runtime, task};
 
 mod lib;
 
 type Result = std::result::Result<(), Box<dyn std::error::Error>>;
+type Results<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-const SESSION_FILE: &str = "echo.session";
+const SESSION_FILE: &str = "exchangebot.session";
 
 async fn get_support() -> Option<lib::Symbols> {
     let url = "https://api.exchangerate.host/symbols";
@@ -44,21 +46,35 @@ async fn get_exchange(from: &str, target: &str, value: &str) -> Option<lib::Resp
     }
 }
 
+fn prompt(message: &str) -> Results<String> {
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
+    stdout.write_all(message.as_bytes())?;
+    stdout.flush()?;
+
+    let stdin = io::stdin();
+    let mut stdin = stdin.lock();
+
+    let mut line = String::new();
+    stdin.read_line(&mut line)?;
+    Ok(line)
+}
+
 async fn handle_update(client: Client, update: Update, support: lib::Symbols) -> Result {
     match update {
-        Update::NewMessage(message) if !message.outgoing() && message.text().starts_with("/ex") => {
+        Update::NewMessage(message) if message.outgoing() && message.text().starts_with("/ex") => {
+            message.edit("查詢中").await?;
             let split = message.text().split(" ").collect::<Vec<&str>>();
-            // let collection = a.;
-            let chat = message.chat();
+            // let chat = message.chat();
             match split.clone().len() {
                 x => {
                     if x != 2 {
-                        println!("Responding to {}", chat.name());
-                        client.send_message(&chat, "指令錯誤").await.unwrap();
+                        message.edit("指令錯誤").await.unwrap();
+                        // client.send_message(&chat, "指令錯誤").await.unwrap();
                     } else {
                         static RE: Lazy<Regex> = Lazy::new(|| {
                             Regex::new(
-                            r"(?x)                       # Free-spacing mode
+                                r"(?x)                       # Free-spacing mode
                                  (?P<amount>\d+|\d+\.\d+|)  # Amount
                                  (?P<from>\S{1,4})          # From
                                  =                          # Sep
@@ -68,36 +84,40 @@ async fn handle_update(client: Client, update: Update, support: lib::Symbols) ->
                             .unwrap()
                         });
                         let text = match RE.captures(&split[1]) {
-                            Some(caps) if !support.symbols.contains_key(&caps["from"].to_uppercase()) => {
+                            Some(caps)
+                                if !support.symbols.contains_key(&caps["from"].to_uppercase()) =>
+                            {
                                 format!("不支援的幣別 `{from}`", from = &caps["from"])
                             }
-                            Some(caps) if !support.symbols.contains_key(&caps["target"].to_uppercase()) => {
+                            Some(caps)
+                                if !support
+                                    .symbols
+                                    .contains_key(&caps["target"].to_uppercase()) =>
+                            {
                                 format!("不支援的幣別 `{target}`", target = &caps["target"])
                             }
                             Some(caps) => {
                                 let amount = &caps["amount"];
                                 let from = &caps["from"];
                                 let target = &caps["target"];
-                                get_exchange(from, target, amount).await.map(|r| {
-                                    format!(
+                                get_exchange(from, target, amount)
+                                    .await
+                                    .map(|r| {
+                                        format!(
                                         "`{source}` `{from}` 對 `{target}` 的匯率為 `{amount:.2}` ",
                                         source = amount.to_uppercase(),
                                         from = from.to_uppercase(),
                                         target = target.to_uppercase(),
                                         amount = r.result
                                     )
-                                }).unwrap()
+                                    })
+                                    .unwrap()
                             }
-                            None => "Invalid format, Expected `{Amount?}{From}={Target}`".to_string(),
+                            None => {
+                                "Invalid format, Expected `{Amount?}{From}={Target}`".to_string()
+                            }
                         };
-
-                        // let bb = InputMessage::text("sdfsdf").mar);
-                        // InputMessage::text("**whatthefuck**").ma
-
-                        // InputMessage:: (format!("<pre>{}</pre>", graph));
-                        // InputMessage
-
-                        client.send_message(&chat, InputMessage::markdown(text)).await.unwrap();
+                        message.edit(InputMessage::markdown(text)).await.unwrap();
                     }
                 }
             }
@@ -119,10 +139,27 @@ async fn async_main() -> Result {
     .await?;
     if !client.is_authorized().await? {
         println!("Signing in...");
-        client
-            .bot_sign_in(&config.bot_token, config.api_id, &config.api_hash)
+        let phone = prompt("Enter your phone number (international format): ")?;
+        let token = client
+            .request_login_code(&phone, config.api_id, &config.clone().api_hash)
             .await?;
-        client.session().save_to_file(SESSION_FILE)?;
+        let code = prompt("Enter the code you received: ")?;
+        let signed_in = client.sign_in(&token, &code).await;
+        match signed_in {
+            Err(SignInError::PasswordRequired(password_token)) => {
+                // Note: this `prompt` method will echo the password in the console.
+                //       Real code might want to use a better way to handle this.
+                let hint = password_token.hint().unwrap_or("None");
+                let prompt_message = format!("Enter the password (hint {}): ", &hint);
+                let password = prompt(prompt_message.as_str())?;
+
+                client
+                    .check_password(password_token, password.trim())
+                    .await?;
+            }
+            Ok(_) => (),
+            Err(e) => panic!("{}", e),
+        };
         println!("Signed in!");
     }
     println!("Connected!");
