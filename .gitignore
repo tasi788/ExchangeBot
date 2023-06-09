@@ -10,6 +10,16 @@ Cargo.lock
 **/*.rs.bk
 
 
+.idea/
+
+ExchangeBot/config.yml
+
+ExchangeBot/ping.session
+
+*.yml
+
+*.session
+
 .DS_Store
 
 .idea
