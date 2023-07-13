@@ -1,13 +1,12 @@
 use grammers_client;
-use grammers_client::{Client, Config, InitParams, InputMessage, SignInError, Update};
+use grammers_client::{Client, Config, InputMessage, SignInError, Update};
 use grammers_session::Session;
-use grammers_tl_types::enums::MessageEntity;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::io::{self, BufRead as _, Write as _};
 use tokio::{runtime, task};
 
-mod lib;
+use exchange_bot as lib;
 
 type Result = std::result::Result<(), Box<dyn std::error::Error>>;
 type Results<T> = std::result::Result<T, Box<dyn std::error::Error>>;
