@@ -69,11 +69,15 @@ fn command_filter(text: &str) -> Results<Option<(&str, &str)>> {
 fn parse_exchange_args(text: &str) -> Option<(String, String, String)> {
     static RE: Lazy<Regex> = Lazy::new(|| {
         Regex::new(
-            r"(?x)                     # Free-spacing mode
-            (?P<amount>\d+|\d+\.\d+|)  # Amount
-            (?P<from>\S{1,4})          # From
-            =                          # Sep
-            (?P<target>\S{1,4})        # Target
+            r"(?x)                      # Free-spacing mode
+            ^\s*
+            (?P<amount>\d+|\d+\.\d+|)   # Amount
+            (?:\s*)                     # Optional Sep
+            (?P<from>[a-zA-Z]{1,4})     # From
+            (?:\s*=\s*|\s+)             # Sep
+            (?:\s*)                     # Optional Sep
+            (?P<target>[a-zA-Z]\S{1,4}) # Target
+            \s*$
             ",
         )
         .unwrap()
@@ -108,7 +112,8 @@ async fn handle_ex_command(cmd_args: &str, support: &lib::Symbols) -> Results<St
                 )
             })
             .unwrap(),
-        None => "Invalid format, Expected `{Amount?}{From}={Target}`".into(),
+        None => "不合法的格式, 應為 `{Amount?}{From}={Target}` 或 `{Amount?}{From} {Target}`"
+            .into(),
     };
     Ok(text)
 }
@@ -218,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_valid_ex_args() {
+    fn parse_valid_ex_args_with_equal() {
         let stringify = |a: &str, b: &str, c: &str| (a.into(), b.into(), c.into());
         assert_eq!(
             parse_exchange_args("USD=TWD").unwrap(),
@@ -235,11 +240,42 @@ mod tests {
     }
 
     #[test]
+    fn parse_valid_ex_args_with_whitespace() {
+        let stringify = |a: &str, b: &str, c: &str| (a.into(), b.into(), c.into());
+        assert_eq!(
+            parse_exchange_args("USD TWD").unwrap(),
+            stringify("", "USD", "TWD")
+        );
+        assert_eq!(
+            parse_exchange_args("99 USD=TWD").unwrap(),
+            stringify("99", "USD", "TWD")
+        );
+        assert_eq!(
+            parse_exchange_args("99 USD TWD").unwrap(),
+            stringify("99", "USD", "TWD")
+        );
+        assert_eq!(
+            parse_exchange_args("55.66 USD TWD").unwrap(),
+            stringify("55.66", "USD", "TWD")
+        );
+        assert_eq!(
+            parse_exchange_args("  55.66   USD   TWD   ").unwrap(),
+            stringify("55.66", "USD", "TWD")
+        );
+        assert_eq!(
+            parse_exchange_args("\n   55.66 \t  USD  \t\n  TWD  \n ").unwrap(),
+            stringify("55.66", "USD", "TWD")
+        );
+    }
+
+    #[test]
     fn parse_invalid_ex_args() {
         assert_eq!(parse_exchange_args("TWD"), None);
         assert_eq!(parse_exchange_args("=TWD"), None);
         assert_eq!(parse_exchange_args("99TWD"), None);
         assert_eq!(parse_exchange_args("99TWD="), None);
+        assert_eq!(parse_exchange_args("99FUTAFUTA=TWD"), None);
+        assert_eq!(parse_exchange_args("99TWD=FUTAFUTA"), None);
     }
 
     #[tokio::test]
@@ -255,7 +291,6 @@ mod tests {
         };
         let to_err = |s| format!("不支援的幣別 `{s}`");
         let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support);
-        assert_eq!(test_cmd("/ex 1=TWD").await.unwrap(), to_err("1"));
         assert_eq!(test_cmd("/ex USD=TWD").await.unwrap(), to_err("USD"));
         assert_eq!(test_cmd("/ex 99USD=TWD").await.unwrap(), to_err("USD"));
     }
@@ -283,9 +318,13 @@ mod tests {
         let support = lib::Symbols {
             symbols: HashMap::from([]),
         };
-        let to_err = || "Invalid format, Expected `{Amount?}{From}={Target}`".to_string();
+        let to_err = || {
+            "不合法的格式, 應為 `{Amount?}{From}={Target}` 或 `{Amount?}{From} {Target}`"
+                .to_string()
+        };
         let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support);
         assert_eq!(test_cmd("/ex ").await.unwrap(), to_err());
         assert_eq!(test_cmd("/ex 99").await.unwrap(), to_err());
+        assert_eq!(test_cmd("/ex 1=TWD").await.unwrap(), to_err());
     }
 }
