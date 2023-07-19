@@ -120,7 +120,7 @@ async fn handle_ex_command(cmd_args: &str, support: &lib::Symbols) -> Results<St
 
 async fn handle_update(_client: Client, update: Update, support: lib::Symbols) -> Result {
     match update {
-        Update::NewMessage(message) if message.outgoing() => {
+        Update::NewMessage(message) => {
             let filtered = command_filter(message.text())?;
             match filtered {
                 Some(("/ex", cmd_args)) => {
