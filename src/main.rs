@@ -122,10 +122,11 @@ async fn handle_update(_client: Client, update: Update, support: lib::Symbols) -
     match update {
         Update::NewMessage(message) => {
             let filtered = command_filter(message.text())?;
+            let sent = message.reply(InputMessage::text("查詢中...")).await.unwrap();
             match filtered {
                 Some(("/ec", cmd_args)) => {
                     let text = handle_ex_command(cmd_args, &support).await?;
-                    message.edit(InputMessage::markdown(text)).await.unwrap();
+                    sent.edit(InputMessage::markdown(text)).await.unwrap();
                 }
                 Some(_) | None => {}
             }
