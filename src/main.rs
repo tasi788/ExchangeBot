@@ -1,3 +1,4 @@
+use exchange::Exchange;
 use grammers_client;
 use grammers_client::{Client, Config, InputMessage, SignInError, Update};
 use grammers_session::Session;
@@ -7,6 +8,7 @@ use std::io::{self, BufRead as _, Write as _};
 use tokio::{runtime, task};
 
 use exchange_bot as lib;
+mod exchange;
 
 type Result = std::result::Result<(), Box<dyn std::error::Error>>;
 type Results<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -193,6 +195,12 @@ async fn async_main() -> Result {
 }
 
 fn main() -> Result {
+    let client: exchange::ExchangeClient = exchange::ExchangeClient{
+        base_url: "todo!()".to_string(),
+        api_keys: "todo!()".to_string(),
+    };
+    
+    
     runtime::Builder::new_current_thread()
         .enable_all()
         .build()

@@ -7,6 +7,8 @@ pub struct Config {
     pub api_id: i32,
     pub api_hash: String,
     pub bot_token: String,
+    pub api_endpoint: String,
+    pub api_token: String
 }
 
 #[derive(Debug, Deserialize)]
