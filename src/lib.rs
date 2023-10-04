@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs::File;
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -8,23 +7,7 @@ pub struct Config {
     pub api_hash: String,
     pub bot_token: String,
     pub api_endpoint: String,
-    pub api_token: String
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RespResult {
-    pub result: f64,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct CurrencyInfo {
-    pub description: String,
-    pub code: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct Symbols {
-    pub symbols: HashMap<String, CurrencyInfo>,
+    pub api_token: String,
 }
 
 pub mod utils {
