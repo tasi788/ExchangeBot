@@ -1,7 +1,8 @@
-use std::fmt::format;
+use std::{fmt::format, collections::HashMap};
 
+use exchange_bot::Config;
 use reqwest;
-use serde;
+use serde::{self, Deserialize};
 use async_trait::async_trait;
 
 
@@ -12,18 +13,42 @@ pub trait Exchange {
 }
 
 pub struct ExchangeClient {
-    pub base_url: String,
-    pub api_keys: String,
+    pub endpoint: String,
+    
 }
 
+impl ExchangeClient {
+    pub fn new(apikey: &str) -> Self {
+        Self {
+            endpoint: format!("http://api.exchangerate.host/|req|?{apikey}", apikey=apikey),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CurrencyInfo {
+    pub description: String,
+    pub code: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Symbols {
+    pub symbols: HashMap<String, CurrencyInfo>,
+}
 
 #[async_trait]
 impl Exchange for ExchangeClient {
-    async fn get_list(self) {
-        let url: String = format!("http://api.exchangerate.host/list?access_key={}", self.api_keys); 
-        // Request http://api.exchangerate.host/live?access_key=4bac4a0c5e53688ae5aa6703d84803c9
-        // let url = format("");
-        todo!()
+    async fn get_list(self) -> Option<Symbols>{ // 這裡為什麼噴錯了？
+        let url: String = self.endpoint.replace("|req|", "list"); 
+        match reqwest::get(&url).await {
+            Ok(response) => {
+                return Some(response.json::<Symbols>().await.unwrap())
+            }
+            Err(_) => {
+                println!("Request /list error");
+                None
+            }
+        }
     }
 
     async fn convert(self) {
