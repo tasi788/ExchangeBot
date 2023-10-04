@@ -8,7 +8,7 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait Exchange {
-    async fn get_list(self);
+    async fn get_list(self) -> Option<Symbols>;
     async fn convert(self);
 }
 
@@ -38,7 +38,7 @@ pub struct Symbols {
 
 #[async_trait]
 impl Exchange for ExchangeClient {
-    async fn get_list(self) -> Option<Symbols>{ // 這裡為什麼噴錯了？
+    async fn get_list(self) -> Option<Symbols>{
         let url: String = self.endpoint.replace("|req|", "list"); 
         match reqwest::get(&url).await {
             Ok(response) => {
