@@ -9,7 +9,7 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait Exchange {
     async fn get_list(self) -> Option<Symbols>;
-    async fn convert(self);
+    async fn convert(self, from: &str, target: &str, value: &str) -> Option<ConvertResult>;
 }
 
 pub struct ExchangeClient {
@@ -36,6 +36,11 @@ pub struct Symbols {
     pub symbols: HashMap<String, CurrencyInfo>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ConvertResult {
+    pub result: f64,
+}
+
 #[async_trait]
 impl Exchange for ExchangeClient {
     async fn get_list(self) -> Option<Symbols>{
@@ -51,8 +56,18 @@ impl Exchange for ExchangeClient {
         }
     }
 
-    async fn convert(self) {
-        todo!()
+    async fn convert(self, from: &str, target: &str, value: &str) -> Option<ConvertResult> {
+        let mut url: String = self.endpoint.replace("|req|", "convert&from"); 
+        url + format!("&from={from}&to={target}&amount={amount}", from=from, target=target, amount=value).as_str();
+        match reqwest::get(&url).await {
+            Ok(response) => {
+                return Some(response.json::<ConvertResult>().await.unwrap())
+            }
+            Err(_) => {
+                println!("Request /convert error");
+                None
+            }
+        }
     }
 }
 
