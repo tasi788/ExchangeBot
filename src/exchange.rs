@@ -1,6 +1,5 @@
-use std::{fmt::format, collections::HashMap};
+use std::collections::HashMap;
 
-use exchange_bot::Config;
 use reqwest;
 use serde::{self, Deserialize};
 use async_trait::async_trait;
