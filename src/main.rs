@@ -32,7 +32,7 @@ fn prompt(message: &str) -> Results<String> {
 
 fn command_filter(text: &str) -> Results<Option<(&str, &str)>> {
     match text.split_once(|c| char::is_whitespace(c)) {
-        Some((cmd @ "/ec", args)) => Ok(Some((cmd, args))),
+        Some((cmd @ "/ex", args)) => Ok(Some((cmd, args))),
         Some(_) | None => Ok(None),
     }
 }
@@ -95,7 +95,7 @@ async fn handle_update(_client: Client, update: Update, support: exchange::Symbo
         Update::NewMessage(message) => {
             let filtered = command_filter(message.text())?;
             match filtered {
-                Some(("/ec", cmd_args)) => {
+                Some(("/ex", cmd_args)) => {
                     let text = handle_ex_command(cmd_args, &support, exchange_client).await?;
                     let sent = message
                         .reply(InputMessage::text("查詢中..."))
@@ -192,18 +192,18 @@ mod tests {
 
     #[test]
     fn command_filter_ex_command() {
-        assert_eq!(command_filter("/ec ").unwrap(), Some(("/ec", "")));
-        assert_eq!(command_filter("/ec test").unwrap(), Some(("/ec", "test")));
+        assert_eq!(command_filter("/ex ").unwrap(), Some(("/ex", "")));
+        assert_eq!(command_filter("/ex test").unwrap(), Some(("/ex", "test")));
         assert_eq!(
-            command_filter("/ec test other args").unwrap(),
-            Some(("/ec", "test other args"))
+            command_filter("/ex test other args").unwrap(),
+            Some(("/ex", "test other args"))
         );
     }
 
     #[test]
     fn command_filter_ignore() {
-        assert_eq!(command_filter("/ec").unwrap(), None);
-        assert_eq!(command_filter("/ectest").unwrap(), None);
+        assert_eq!(command_filter("/ex").unwrap(), None);
+        assert_eq!(command_filter("/extest").unwrap(), None);
         assert_eq!(command_filter("/start").unwrap(), None);
         assert_eq!(command_filter("/help").unwrap(), None);
     }
@@ -275,8 +275,8 @@ mod tests {
         let client = exchange::ExchangeClient::new("");
         let to_err = |s| format!("不支援的幣別 `{s}`");
         let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
-        assert_eq!(test_cmd("/ec USD=TWD").await.unwrap(), to_err("USD"));
-        assert_eq!(test_cmd("/ec 99USD=TWD").await.unwrap(), to_err("USD"));
+        assert_eq!(test_cmd("/ex USD=TWD").await.unwrap(), to_err("USD"));
+        assert_eq!(test_cmd("/ex 99USD=TWD").await.unwrap(), to_err("USD"));
     }
 
     #[tokio::test]
@@ -290,9 +290,9 @@ mod tests {
         let client = exchange::ExchangeClient::new("");
         let to_err = |s| format!("不支援的幣別 `{s}`");
         let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
-        assert_eq!(test_cmd("/ec TWD=USD").await.unwrap(), to_err("USD"));
-        assert_eq!(test_cmd("/ec 99TWD=USD").await.unwrap(), to_err("USD"));
-        assert_eq!(test_cmd("/ec 55.66TWD=USD").await.unwrap(), to_err("USD"));
+        assert_eq!(test_cmd("/ex TWD=USD").await.unwrap(), to_err("USD"));
+        assert_eq!(test_cmd("/ex 99TWD=USD").await.unwrap(), to_err("USD"));
+        assert_eq!(test_cmd("/ex 55.66TWD=USD").await.unwrap(), to_err("USD"));
     }
 
     #[tokio::test]
@@ -306,8 +306,8 @@ mod tests {
                 .to_string()
         };
         let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
-        assert_eq!(test_cmd("/ec ").await.unwrap(), to_err());
-        assert_eq!(test_cmd("/ec 99").await.unwrap(), to_err());
-        assert_eq!(test_cmd("/ec 1=TWD").await.unwrap(), to_err());
+        assert_eq!(test_cmd("/ex ").await.unwrap(), to_err());
+        assert_eq!(test_cmd("/ex 99").await.unwrap(), to_err());
+        assert_eq!(test_cmd("/ex 1=TWD").await.unwrap(), to_err());
     }
 }
