@@ -34,9 +34,6 @@ impl ExchangeClient {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Symbols {
-    pub success: bool,
-    pub terms: String,
-    pub privacy: String,
     #[serde(rename="currencies")]
     pub symbols: HashMap<String, String>,
 }
@@ -62,7 +59,7 @@ impl Exchange for ExchangeClient {
     }
 
     async fn convert(self, from: &str, target: &str, value: &str) -> Option<ConvertResult> {
-        let mut url: String = self.endpoint.replace("|req|", "convert&from");
+        let url: String = self.endpoint.replace("|req|", "convert&from");
         let url = url + format!(
             "&from={from}&to={target}&amount={amount}",
             from = from,

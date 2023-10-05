@@ -264,56 +264,50 @@ mod tests {
         assert_eq!(parse_exchange_args("99TWD=FUTAFUTA"), None);
     }
 
-    // #[tokio::test]
-    // async fn ex_missing_from() {
-    //     let support = exchange::Symbols {
-    //         symbols: HashMap::from([(
-    //             "TWD".into(),
-    //             exchange::CurrencyInfo {
-    //                 description: "".into(),
-    //                 code: "".into(),
-    //             },
-    //         )]),
-    //     };
-    //     let client = exchange::ExchangeClient::new("");
-    //     let to_err = |s| format!("不支援的幣別 `{s}`");
-    //     let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
-    //     assert_eq!(test_cmd("/ec USD=TWD").await.unwrap(), to_err("USD"));
-    //     assert_eq!(test_cmd("/ec 99USD=TWD").await.unwrap(), to_err("USD"));
-    // }
+    #[tokio::test]
+    async fn ex_missing_from() {
+        let support = exchange::Symbols {
+            symbols: HashMap::from([(
+                "TWD".into(),
+                "".into()
+            )]),
+        };
+        let client = exchange::ExchangeClient::new("");
+        let to_err = |s| format!("不支援的幣別 `{s}`");
+        let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
+        assert_eq!(test_cmd("/ec USD=TWD").await.unwrap(), to_err("USD"));
+        assert_eq!(test_cmd("/ec 99USD=TWD").await.unwrap(), to_err("USD"));
+    }
 
-    // #[tokio::test]
-    // async fn ex_missing_target() {
-    //     let support = exchange::Symbols {
-    //         symbols: HashMap::from([(
-    //             "TWD".into(),
-    //             exchange::CurrencyInfo {
-    //                 description: "".into(),
-    //                 code: "".into(),
-    //             },
-    //         )]),
-    //     };
-    //     let client = exchange::ExchangeClient::new("");
-    //     let to_err = |s| format!("不支援的幣別 `{s}`");
-    //     let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
-    //     assert_eq!(test_cmd("/ec TWD=USD").await.unwrap(), to_err("USD"));
-    //     assert_eq!(test_cmd("/ec 99TWD=USD").await.unwrap(), to_err("USD"));
-    //     assert_eq!(test_cmd("/ec 55.66TWD=USD").await.unwrap(), to_err("USD"));
-    // }
+    #[tokio::test]
+    async fn ex_missing_target() {
+        let support = exchange::Symbols {
+            symbols: HashMap::from([(
+                "TWD".into(),
+                "".into()
+            )]),
+        };
+        let client = exchange::ExchangeClient::new("");
+        let to_err = |s| format!("不支援的幣別 `{s}`");
+        let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
+        assert_eq!(test_cmd("/ec TWD=USD").await.unwrap(), to_err("USD"));
+        assert_eq!(test_cmd("/ec 99TWD=USD").await.unwrap(), to_err("USD"));
+        assert_eq!(test_cmd("/ec 55.66TWD=USD").await.unwrap(), to_err("USD"));
+    }
 
-    // #[tokio::test]
-    // async fn ex_invalid_format() {
-    //     let support = exchange::Symbols {
-    //         symbols: HashMap::from([]),
-    //     };
-    //     let client = exchange::ExchangeClient::new("");
-    //     let to_err = || {
-    //         "不合法的格式, 應為 `{Amount?}{From}={Target}` 或 `{Amount?}{From} {Target}`"
-    //             .to_string()
-    //     };
-    //     let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
-    //     assert_eq!(test_cmd("/ec ").await.unwrap(), to_err());
-    //     assert_eq!(test_cmd("/ec 99").await.unwrap(), to_err());
-    //     assert_eq!(test_cmd("/ec 1=TWD").await.unwrap(), to_err());
-    // }
+    #[tokio::test]
+    async fn ex_invalid_format() {
+        let support = exchange::Symbols {
+            symbols: HashMap::from([]),
+        };
+        let client = exchange::ExchangeClient::new("");
+        let to_err = || {
+            "不合法的格式, 應為 `{Amount?}{From}={Target}` 或 `{Amount?}{From} {Target}`"
+                .to_string()
+        };
+        let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
+        assert_eq!(test_cmd("/ec ").await.unwrap(), to_err());
+        assert_eq!(test_cmd("/ec 99").await.unwrap(), to_err());
+        assert_eq!(test_cmd("/ec 1=TWD").await.unwrap(), to_err());
+    }
 }
