@@ -1,3 +1,4 @@
+use exchange::Exchange;
 use grammers_client;
 use grammers_client::{Client, Config, InputMessage, SignInError, Update};
 use grammers_session::Session;
@@ -7,43 +8,13 @@ use std::io::{self, BufRead as _, Write as _};
 use tokio::{runtime, task};
 
 use exchange_bot as lib;
+mod exchange;
 
 type Result = std::result::Result<(), Box<dyn std::error::Error>>;
 type Results<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 const SESSION_FILE: &str = "exchangebot.session";
 
-async fn get_support() -> Option<lib::Symbols> {
-    let url = "https://api.exchangerate.host/symbols";
-    match reqwest::get(url)
-        .await
-        .expect("req error")
-        .json::<lib::Symbols>()
-        .await
-    {
-        Ok(t) => Some(t),
-        _ => None,
-    }
-    // Some(res)
-}
-
-async fn get_exchange(from: &str, target: &str, value: &str) -> Option<lib::RespResult> {
-    let url = format!(
-        "https://api.exchangerate.host/convert?from={from}&to={target}&amount={amount}",
-        from = from,
-        target = target,
-        amount = value
-    );
-    match reqwest::get(url)
-        .await
-        .expect("req error")
-        .json::<lib::RespResult>()
-        .await
-    {
-        Ok(t) => Some(t),
-        _ => None,
-    }
-}
 
 fn prompt(message: &str) -> Results<String> {
     let stdout = io::stdout();
@@ -61,7 +32,7 @@ fn prompt(message: &str) -> Results<String> {
 
 fn command_filter(text: &str) -> Results<Option<(&str, &str)>> {
     match text.split_once(|c| char::is_whitespace(c)) {
-        Some((cmd @ "/ex", args)) => Ok(Some((cmd, args))),
+        Some((cmd @ "/ec", args)) => Ok(Some((cmd, args))),
         Some(_) | None => Ok(None),
     }
 }
@@ -92,7 +63,7 @@ fn parse_exchange_args(text: &str) -> Option<(String, String, String)> {
     }
 }
 
-async fn handle_ex_command(cmd_args: &str, support: &lib::Symbols) -> Results<String> {
+async fn handle_ex_command(cmd_args: &str, support: &exchange::Symbols, exchange_client: exchange::ExchangeClient) -> Results<String> {
     let text = match parse_exchange_args(cmd_args) {
         Some((_, from, _)) if !support.symbols.contains_key(&from.to_uppercase()) => {
             format!("不支援的幣別 `{from}`")
@@ -100,7 +71,7 @@ async fn handle_ex_command(cmd_args: &str, support: &lib::Symbols) -> Results<St
         Some((_, _, target)) if !support.symbols.contains_key(&target.to_uppercase()) => {
             format!("不支援的幣別 `{target}`")
         }
-        Some((amount, from, target)) => get_exchange(&from, &target, &amount)
+        Some((amount, from, target)) => exchange_client.convert(&from, &target, &amount)
             .await
             .map(|r| {
                 format!(
@@ -112,20 +83,25 @@ async fn handle_ex_command(cmd_args: &str, support: &lib::Symbols) -> Results<St
                 )
             })
             .unwrap(),
-        None => "不合法的格式, 應為 `{Amount?}{From}={Target}` 或 `{Amount?}{From} {Target}`"
-            .into(),
+        None => {
+            "不合法的格式, 應為 `{Amount?}{From}={Target}` 或 `{Amount?}{From} {Target}`".into()
+        }
     };
     Ok(text)
 }
 
-async fn handle_update(_client: Client, update: Update, support: lib::Symbols) -> Result {
+async fn handle_update(_client: Client, update: Update, support: exchange::Symbols, exchange_client: exchange::ExchangeClient) -> Result {
     match update {
-        Update::NewMessage(message) if message.outgoing() => {
+        Update::NewMessage(message) => {
             let filtered = command_filter(message.text())?;
             match filtered {
-                Some(("/ex", cmd_args)) => {
-                    let text = handle_ex_command(cmd_args, &support).await?;
-                    message.edit(InputMessage::markdown(text)).await.unwrap();
+                Some(("/ec", cmd_args)) => {
+                    let text = handle_ex_command(cmd_args, &support, exchange_client).await?;
+                    let sent = message
+                        .reply(InputMessage::text("查詢中..."))
+                        .await
+                        .unwrap();
+                    sent.edit(InputMessage::markdown(text)).await.unwrap();
                 }
                 Some(_) | None => {}
             }
@@ -178,9 +154,10 @@ async fn async_main() -> Result {
         result = client.next_update() => result,
     }? {
         let handle = client.clone();
-        // let curr = ;
+        let exchange_client = exchange::ExchangeClient::new(&config.api_token);
+        let symbol = exchange_client.clone().get_list().await.unwrap();
         task::spawn(async move {
-            match handle_update(handle, update, get_support().await.unwrap()).await {
+            match handle_update(handle, update, symbol, exchange_client).await {
                 Ok(_) => {}
                 Err(e) => eprintln!("Error handling updates!: {}", e),
             }
@@ -204,20 +181,29 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
+    #[tokio::test]  
+    async fn client_get_list() {
+        let config = lib::utils::load_config().unwrap();
+        
+        let client = exchange::ExchangeClient::new(&config.api_token);
+        let result = client.get_list().await.unwrap();
+        assert_ne!(result.symbols.len(), 0);
+    }
+
     #[test]
     fn command_filter_ex_command() {
-        assert_eq!(command_filter("/ex ").unwrap(), Some(("/ex", "")));
-        assert_eq!(command_filter("/ex test").unwrap(), Some(("/ex", "test")));
+        assert_eq!(command_filter("/ec ").unwrap(), Some(("/ec", "")));
+        assert_eq!(command_filter("/ec test").unwrap(), Some(("/ec", "test")));
         assert_eq!(
-            command_filter("/ex test other args").unwrap(),
-            Some(("/ex", "test other args"))
+            command_filter("/ec test other args").unwrap(),
+            Some(("/ec", "test other args"))
         );
     }
 
     #[test]
     fn command_filter_ignore() {
-        assert_eq!(command_filter("/ex").unwrap(), None);
-        assert_eq!(command_filter("/extest").unwrap(), None);
+        assert_eq!(command_filter("/ec").unwrap(), None);
+        assert_eq!(command_filter("/ectest").unwrap(), None);
         assert_eq!(command_filter("/start").unwrap(), None);
         assert_eq!(command_filter("/help").unwrap(), None);
     }
@@ -280,51 +266,48 @@ mod tests {
 
     #[tokio::test]
     async fn ex_missing_from() {
-        let support = lib::Symbols {
+        let support = exchange::Symbols {
             symbols: HashMap::from([(
                 "TWD".into(),
-                lib::CurrencyInfo {
-                    description: "".into(),
-                    code: "".into(),
-                },
+                "".into()
             )]),
         };
+        let client = exchange::ExchangeClient::new("");
         let to_err = |s| format!("不支援的幣別 `{s}`");
-        let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support);
-        assert_eq!(test_cmd("/ex USD=TWD").await.unwrap(), to_err("USD"));
-        assert_eq!(test_cmd("/ex 99USD=TWD").await.unwrap(), to_err("USD"));
+        let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
+        assert_eq!(test_cmd("/ec USD=TWD").await.unwrap(), to_err("USD"));
+        assert_eq!(test_cmd("/ec 99USD=TWD").await.unwrap(), to_err("USD"));
     }
 
     #[tokio::test]
     async fn ex_missing_target() {
-        let support = lib::Symbols {
+        let support = exchange::Symbols {
             symbols: HashMap::from([(
                 "TWD".into(),
-                lib::CurrencyInfo {
-                    description: "".into(),
-                    code: "".into(),
-                },
+                "".into()
             )]),
         };
+        let client = exchange::ExchangeClient::new("");
         let to_err = |s| format!("不支援的幣別 `{s}`");
-        let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support);
-        assert_eq!(test_cmd("/ex TWD=USD").await.unwrap(), to_err("USD"));
-        assert_eq!(test_cmd("/ex 99TWD=USD").await.unwrap(), to_err("USD"));
-        assert_eq!(test_cmd("/ex 55.66TWD=USD").await.unwrap(), to_err("USD"));
+        let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
+        assert_eq!(test_cmd("/ec TWD=USD").await.unwrap(), to_err("USD"));
+        assert_eq!(test_cmd("/ec 99TWD=USD").await.unwrap(), to_err("USD"));
+        assert_eq!(test_cmd("/ec 55.66TWD=USD").await.unwrap(), to_err("USD"));
     }
 
     #[tokio::test]
     async fn ex_invalid_format() {
-        let support = lib::Symbols {
+        let support = exchange::Symbols {
             symbols: HashMap::from([]),
         };
+        let client = exchange::ExchangeClient::new("");
         let to_err = || {
             "不合法的格式, 應為 `{Amount?}{From}={Target}` 或 `{Amount?}{From} {Target}`"
                 .to_string()
         };
-        let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support);
-        assert_eq!(test_cmd("/ex ").await.unwrap(), to_err());
-        assert_eq!(test_cmd("/ex 99").await.unwrap(), to_err());
-        assert_eq!(test_cmd("/ex 1=TWD").await.unwrap(), to_err());
+        let test_cmd = |s| handle_ex_command(command_filter(s).unwrap().unwrap().1, &support, client.clone());
+        assert_eq!(test_cmd("/ec ").await.unwrap(), to_err());
+        assert_eq!(test_cmd("/ec 99").await.unwrap(), to_err());
+        assert_eq!(test_cmd("/ec 1=TWD").await.unwrap(), to_err());
     }
 }

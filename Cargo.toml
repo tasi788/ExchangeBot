@@ -19,3 +19,4 @@ grammers-client = { version = "0.4", features = ["markdown", "pulldown-cmark"] }
 serde_yaml = "0.9.19"
 grammers-session = "0.4.0"
 grammers-tl-types = "0.4.0"
+async-trait = "0.1.73"
